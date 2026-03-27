@@ -642,6 +642,56 @@ with tab2:
     st.latex(r"P_{SR\_cond} = I_{s\_rms}^2 \cdot R_{ds\_on\_SR} = " + f"{is_rms:.3f}^2 \\cdot {r_ds_on_sr} = {p_sr_cond:.3f} \\text{{ W}}")
     st.latex(r"P_{dead} = V_{f\_SR} \cdot I_{s\_pk} \cdot t_{delay} \cdot f_{sw} = " + f"{v_f_sr} \\cdot {i_s_pk:.2f} \\cdot {t_on_delay_sr_ns}n \\cdot {f_sw/1000:.1f}k = {p_sr_dead:.3f} \\text{{ W}}")
 
+# --- Monte Carlo Yield Analysis ---
+st.divider()
+with st.expander("🎲 蒙地卡羅量產良率分析 (Monte Carlo Yield Analysis)", expanded=False):
+    st.markdown("模擬零組件公差對滿載效率的影響 (Worst Case: Vac_min, 100% Load)")
+    
+    col_mc1, col_mc2 = st.columns(2)
+    lm_tol = col_mc1.slider("Lm 公差 (%)", 0, 20, 10)
+    rdson_tol = col_mc2.slider("Rds_on 公差 (%)", 0, 20, 10)
+    
+    if st.button("執行 1,000 次蒙地卡羅模擬"):
+        N_sim = 1000
+        eff_results = []
+        
+        # Nominal values
+        lm_nom = sys_params['l_m_uH']
+        rdson_nom = sys_params['r_ds_on_sw']
+        
+        # Generate normal distributions (3-sigma)
+        np.random.seed(42) # For reproducibility
+        lm_samples = np.random.normal(lm_nom, lm_nom * (lm_tol/100)/3, N_sim)
+        rdson_samples = np.random.normal(rdson_nom, rdson_nom * (rdson_tol/100)/3, N_sim)
+        
+        # Simulation Loop
+        progress_bar = st.progress(0)
+        for i in range(N_sim):
+            # Create a shallow copy and update drifted params
+            sim_params = sys_params.copy()
+            sim_params['l_m_uH'] = lm_samples[i]
+            sim_params['r_ds_on_sw'] = rdson_samples[i]
+            
+            # Calculate at worst case: V_ac_min, 100% Load
+            res = calculate_flyback_performance(sim_params, v_ac_min, load_pct=1.0)
+            eff_results.append(res['efficiency'])
+            
+            if i % 100 == 0:
+                progress_bar.progress((i + 1) / N_sim)
+        progress_bar.empty()
+        
+        # Plot Histogram
+        df_mc = pd.DataFrame({"Efficiency (%)": eff_results})
+        fig_mc = px.histogram(df_mc, x="Efficiency (%)", 
+                              title="Efficiency Distribution (1000 Monte Carlo Runs @ Worst Case)",
+                              nbins=30, template="plotly_dark",
+                              color_discrete_sequence=['#1f77b4'])
+        fig_mc.update_layout(bargap=0.1)
+        st.plotly_chart(fig_mc, use_container_width=True)
+        
+        # Summary statistics
+        st.info(f"📊 統計摘要: 平均效率: {np.mean(eff_results):.2f}% | 最小值: {np.min(eff_results):.2f}% | 最大值: {np.max(eff_results):.2f}%")
+
 # Prepare export data
 config_to_export = {
     "op_mode": op_mode,
