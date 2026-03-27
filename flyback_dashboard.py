@@ -632,7 +632,7 @@ with tab2:
 
     st.subheader("損耗公式摘要")
     st.latex(r"P_{SW\_cond} = I_{p\_rms}^2 \cdot R_{ds\_on\_SW} = " + f"{ip_rms:.3f}^2 \\cdot {r_ds_on_sw} = {p_pwm_cond:.3f} \\text{{ W}}")
-    st.latex(r"P_{SW\_sw} = \frac{1}{2} C_{oss} V_{sw}^2 f_{sw} = 0.5 \\cdot " + f"{c_oss_eff*1e12:.1f}p \\cdot {v_sw_final:.1f}^2 \\cdot {f_sw/1000:.1f}k = {p_pwm_sw:.3f} \\text{{ W}}")
+    st.latex(r"P_{SW\_sw} = \frac{1}{2} C_{oss} V_{sw}^2 f_{sw} = 0.5 \\cdot " + f"{c_oss_eff_pf*1e-12:.1e} \\cdot {v_sw_final:.1f}^2 \\cdot {f_sw:.1f} = {p_pwm_sw:.3f} \\text{{ W}}")
     
     st.divider()
     st.markdown("##### 磁性元件損耗 (Transformer)")
@@ -654,8 +654,9 @@ with st.expander("🎲 蒙地卡羅量產良率分析 (Monte Carlo Yield Analysi
     lm_tol = col_mc1.slider("Lm 公差 (%)", 0, 20, 10)
     rdson_tol = col_mc2.slider("Rds_on 公差 (%)", 0, 20, 10)
     
-    if st.button("執行 1,000 次蒙地卡羅模擬"):
-        N_sim = 1000
+    n_simulations = st.number_input("設定模擬次數 (N)", min_value=100, max_value=50000, value=1000, step=100)
+    
+    if st.button(f"執行 {n_simulations} 次蒙地卡羅模擬"):
         eff_results = []
         
         # Nominal values
@@ -664,12 +665,12 @@ with st.expander("🎲 蒙地卡羅量產良率分析 (Monte Carlo Yield Analysi
         
         # Generate normal distributions (3-sigma)
         np.random.seed(42) # For reproducibility
-        lm_samples = np.random.normal(lm_nom, lm_nom * (lm_tol/100)/3, N_sim)
-        rdson_samples = np.random.normal(rdson_nom, rdson_nom * (rdson_tol/100)/3, N_sim)
+        lm_samples = np.random.normal(lm_nom, lm_nom * (lm_tol/100)/3, n_simulations)
+        rdson_samples = np.random.normal(rdson_nom, rdson_nom * (rdson_tol/100)/3, n_simulations)
         
         # Simulation Loop
         progress_bar = st.progress(0)
-        for i in range(N_sim):
+        for i in range(n_simulations):
             # Create a shallow copy and update drifted params
             sim_params = sys_params.copy()
             sim_params['l_m_uH'] = lm_samples[i]
@@ -680,13 +681,13 @@ with st.expander("🎲 蒙地卡羅量產良率分析 (Monte Carlo Yield Analysi
             eff_results.append(res['efficiency'])
             
             if i % 100 == 0:
-                progress_bar.progress((i + 1) / N_sim)
+                progress_bar.progress((i + 1) / n_simulations)
         progress_bar.empty()
         
         # Plot Histogram
         df_mc = pd.DataFrame({"Efficiency (%)": eff_results})
         fig_mc = px.histogram(df_mc, x="Efficiency (%)", 
-                              title="Efficiency Distribution (1000 Monte Carlo Runs @ Worst Case)",
+                              title=f"Efficiency Distribution ({n_simulations} Monte Carlo Runs @ Worst Case)",
                               nbins=30, template="plotly_dark",
                               color_discrete_sequence=['#1f77b4'])
         fig_mc.update_layout(bargap=0.1)
