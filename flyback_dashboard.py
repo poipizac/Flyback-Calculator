@@ -33,7 +33,7 @@ MOSFET_DB = pd.DataFrame([
     {"Model": "ST STF24N60M2", "Vds": 600, "Rdson": 0.168, "Coss": 580, "Qg": 32},
     {"Model": "Toshiba TK12A60W", "Vds": 600, "Rdson": 0.230, "Coss": 310, "Qg": 35},
     {"Model": "ON Semi FCPF190N60E", "Vds": 600, "Rdson": 0.190, "Coss": 490, "Qg": 31},
-    {"Model": "Custom (Manual)", "Vds": 0, "Rdson": 0.21, "Coss": 180, "Qg": 20}
+    {"Model": "Custom...", "Vds": 600, "Rdson": 0.21, "Coss": 180, "Qg": 20}
 ])
 
 # SR MOSFET Database (Secondary Rectification)
@@ -43,7 +43,7 @@ SR_MOSFET_DB = pd.DataFrame([
     {"Model": "ST STP110N10F7", "Vds": 100, "Rdson": 0.0085, "Coss": 650, "Qg": 50},
     {"Model": "Toshiba TK100E10N1", "Vds": 100, "Rdson": 0.0034, "Coss": 950, "Qg": 105},
     {"Model": "ON Semi NTMFS5C628NL", "Vds": 60, "Rdson": 0.0024, "Coss": 1400, "Qg": 52},
-    {"Model": "Custom (Manual)", "Vds": 0, "Rdson": 0.01, "Coss": 500, "Qg": 30}
+    {"Model": "Custom...", "Vds": 100, "Rdson": 0.01, "Coss": 500, "Qg": 30}
 ])
 
 st.title("Flyback 動態功耗計算機")
@@ -388,16 +388,20 @@ with st.sidebar.expander("PWM MOSFET (主開關)"):
     default_idx = model_list.index(default_model) if default_model in model_list else 0
     
     selected_model = st.selectbox("選擇 MOSFET 型號", model_list, index=int(default_idx))
-    mosfet_data = MOSFET_DB[MOSFET_DB["Model"] == selected_model].iloc[0]
     
-    if selected_model == "Custom (Manual)":
+    if selected_model == "Custom...":
+        v_ds_sw = st.number_input("耐壓 Vds_SW (V)", value=float(get_val("v_ds_sw", 600.0)), step=10.0)
         r_ds_on_sw = st.number_input("導通電阻 Rds_on_SW (Ω)", value=float(get_val("r_ds_on_sw", 0.21)), step=0.01)
         c_oss_eff_pf = st.number_input("等效輸出電容 Coss_eff (pF)", value=float(get_val("c_oss_eff_pf", 180.0)), step=1.0)
+        q_g_sw = st.number_input("閘極電荷 Qg_SW (nC)", value=float(get_val("q_g_sw", 20.0)), step=1.0)
+        mosfet_data = {"Model": "Custom...", "Vds": v_ds_sw, "Rdson": r_ds_on_sw, "Coss": c_oss_eff_pf, "Qg": q_g_sw}
     else:
-        # Use database values
+        mosfet_data = MOSFET_DB[MOSFET_DB["Model"] == selected_model].iloc[0]
+        v_ds_sw = mosfet_data["Vds"]
         r_ds_on_sw = mosfet_data["Rdson"]
         c_oss_eff_pf = mosfet_data["Coss"]
-        st.info(f"Vds: {mosfet_data['Vds']}V | Rdson: {r_ds_on_sw}Ω | Coss: {c_oss_eff_pf}pF")
+        q_g_sw = mosfet_data["Qg"]
+        st.info(f"Vds: {v_ds_sw}V | Rdson: {r_ds_on_sw}Ω | Coss: {c_oss_eff_pf}pF | Qg: {q_g_sw}nC")
         
     c_oss_eff = c_oss_eff_pf * 1e-12
 
@@ -412,15 +416,20 @@ with st.sidebar.expander("二極體/SR MOSFET"):
     default_sr_idx = sr_model_list.index(default_sr_model) if default_sr_model in sr_model_list else 0
     
     selected_sr_model = st.selectbox("選擇 SR MOSFET 型號", sr_model_list, index=int(default_sr_idx))
-    sr_mosfet_data = SR_MOSFET_DB[SR_MOSFET_DB["Model"] == selected_sr_model].iloc[0]
     
-    if selected_sr_model == "Custom (Manual)":
+    if selected_sr_model == "Custom...":
+        v_ds_sr = st.number_input("耐壓 Vds_SR (V)", value=float(get_val("v_ds_sr", 100.0)), step=10.0)
         r_ds_on_sr = st.number_input("導通電阻 Rds_on_SR (Ω)", value=float(get_val("r_ds_on_sr", 0.01)), step=0.001)
         c_oss_sr_pf = st.number_input("輸出電容 Coss_SR (pF)", value=float(get_val("c_oss_sr_pf", 500.0)), step=10.0)
+        q_g_sr = st.number_input("閘極電荷 Qg_SR (nC)", value=float(get_val("q_g_sr", 30.0)), step=1.0)
+        sr_mosfet_data = {"Model": "Custom...", "Vds": v_ds_sr, "Rdson": r_ds_on_sr, "Coss": c_oss_sr_pf, "Qg": q_g_sr}
     else:
+        sr_mosfet_data = SR_MOSFET_DB[SR_MOSFET_DB["Model"] == selected_sr_model].iloc[0]
+        v_ds_sr = sr_mosfet_data["Vds"]
         r_ds_on_sr = sr_mosfet_data["Rdson"]
         c_oss_sr_pf = sr_mosfet_data["Coss"]
-        st.info(f"Vds: {sr_mosfet_data['Vds']}V | Rdson: {r_ds_on_sr}Ω | Coss: {c_oss_sr_pf}pF")
+        q_g_sr = sr_mosfet_data["Qg"]
+        st.info(f"Vds: {v_ds_sr}V | Rdson: {r_ds_on_sr}Ω | Coss: {c_oss_sr_pf}pF | Qg: {q_g_sr}nC")
 
     v_f_sr = st.number_input("本體二極體壓降 Vf_SR (V)", value=float(get_val("v_f_sr", 1.2)), step=0.1)
     t_on_delay_sr_ns = st.number_input("導通延遲時間 ton_delay_SR (ns)", value=float(get_val("t_on_delay_sr_ns", 20.0)), step=1.0)
